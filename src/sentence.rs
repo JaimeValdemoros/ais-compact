@@ -116,14 +116,14 @@ impl<'a> Nmea<'a> {
         )
         .context(StrContext::Label("channel"))
         .parse_next(s)?;
+        ','.parse_next(s)?;
         let body = terminated(take_while(1.., ('0'..='W', '`'..='w')), ',')
             .context(StrContext::Label("body"))
             .parse_next(s)?;
-        let fill_bits: char = terminated(one_of(('0'..'5',)), ',')
+        let fill_bits: char = terminated(one_of(('0'..'5',)), '*')
             .context(StrContext::Label("fill_bits"))
             .parse_next(s)?;
         let fill_bits = u3::new(fill_bits as u8 - b'0').unwrap();
-        '*'.parse_next(s)?;
         let checksum = take(2usize)
             .try_map(|s| u8::from_str_radix(s, 16))
             .context(StrContext::Label("checksum"))
