@@ -1,5 +1,7 @@
 use std::io::{BufRead, Write};
 
+mod sentence;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut line = String::new();
     let mut stdin = std::io::stdin().lock();
@@ -12,6 +14,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if line.trim_end().is_empty() {
             continue;
         }
+        let sentence = sentence::Nmea::parse(&line)?;
+        eprintln!("{sentence:?}");
         stdout.write_all(line.as_bytes())?;
     }
 
