@@ -8,6 +8,7 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "bit-struct",
+ "either",
  "winnow",
 ]
 
@@ -31,6 +32,12 @@ checksum = "270fbbb014407467f7a2c9b1fa0b74057d5cbc452f18bac3bb5aad601e590521"
 dependencies = [
  "num-traits",
 ]
+
+[[package]]
+name = "either"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "memchr"

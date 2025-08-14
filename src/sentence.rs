@@ -1,9 +1,44 @@
+use std::fmt;
+
 use bit_struct::*;
+use either::Either;
 
 enums! {
     pub TalkerID { AB, AD, AI, AN, AR, AS, AT, AX, BS, SA }
 
     pub ChannelCode { A, B, C1, C2 }
+}
+
+impl fmt::Display for TalkerID {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TalkerID::AB => write!(fmt, "AB"),
+            TalkerID::AD => write!(fmt, "AD"),
+            TalkerID::AI => write!(fmt, "AI"),
+            TalkerID::AN => write!(fmt, "AN"),
+            TalkerID::AR => write!(fmt, "AR"),
+            TalkerID::AS => write!(fmt, "AS"),
+            TalkerID::AT => write!(fmt, "AT"),
+            TalkerID::AX => write!(fmt, "AX"),
+            TalkerID::BS => write!(fmt, "BS"),
+            TalkerID::SA => write!(fmt, "SA"),
+        }
+    }
+}
+
+impl fmt::Display for ChannelCode {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            fmt,
+            "{}",
+            match self {
+                ChannelCode::A => 'A',
+                ChannelCode::B => 'B',
+                ChannelCode::C1 => '1',
+                ChannelCode::C2 => '2',
+            }
+        )
+    }
 }
 
 bit_struct! {
@@ -28,13 +63,12 @@ pub struct Nmea<'a> {
 }
 
 impl<'a> Nmea<'a> {
-    pub fn parse(s: &'a str) -> anyhow::Result<Self> {
-        Self::parse_inner(s).map_err(|e| anyhow::format_err!("{e}"))
+    pub fn parse(mut s: &'a str) -> anyhow::Result<Self> {
+        use winnow::Parser;
+        Self::parse_inner.parse(&mut s).map_err(|e| anyhow::format_err!("\n{e}"))
     }
 
-    fn parse_inner(mut s: &'a str) -> winnow::Result<Self> {
-        // !AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
-        let s = &mut s;
+    fn parse_inner(s: &mut &'a str) -> winnow::Result<Self> {
         use winnow::{
             Parser,
             ascii::digit1,
@@ -86,5 +120,29 @@ impl<'a> Nmea<'a> {
             checksum,
         );
         Ok(Nmea { metadata, body })
+    }
+}
+
+impl<'a> fmt::Display for Nmea<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        // !AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
+        let Nmea { metadata, body } = self;
+        let mut m = *metadata;
+        let talker = m.talker().get();
+        let length = m.length().get();
+        let index = m.index().get();
+        let message_id = m.message_id().get();
+        let message_id = if message_id == 0 {
+            Either::Left("")
+        } else {
+            Either::Right(message_id)
+        };
+        let channel = m.channel().get();
+        let fill_bits = m.fill_bits().get();
+        let checksum = m.checksum().get();
+        write!(
+            fmt,
+            "!{talker}VDM,{length},{index},{message_id},{channel},{body},{fill_bits}*{checksum:X}"
+        )
     }
 }

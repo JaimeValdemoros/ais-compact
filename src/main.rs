@@ -14,9 +14,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if line.trim_end().is_empty() {
             continue;
         }
-        let sentence = sentence::Nmea::parse(&line)?;
-        eprintln!("{sentence:?}");
-        stdout.write_all(line.as_bytes())?;
+        match sentence::Nmea::parse(line.trim_end()) {
+            Ok(sentence) => {
+                writeln!(stdout, "{}", sentence)?;
+            }
+            Err(e) => eprintln!("{e}"),
+        }
+
     }
 
     Ok(())

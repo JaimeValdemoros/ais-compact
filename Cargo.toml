@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.99"
 bit-struct = { version = "0.3.2", default-features = false }
+either = "1.15.0"
 winnow = "0.7.12"
