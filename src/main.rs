@@ -20,7 +20,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => eprintln!("{e}"),
         }
-
     }
 
     Ok(())

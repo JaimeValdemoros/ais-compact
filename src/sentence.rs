@@ -164,3 +164,13 @@ impl<'a> fmt::Display for Nmea<'a> {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_1() {
+        Nmea::parse("!AIVDM,1,1,,A,13HOI:0P0000VOHLCnHQKwvL05Ip,0*23").unwrap();
+    }
+}
