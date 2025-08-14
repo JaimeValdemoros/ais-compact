@@ -6,7 +6,7 @@ use either::Either;
 enums! {
     pub TalkerID { AB, AD, AI, AN, AR, AS, AT, AX, BS, SA }
 
-    pub ChannelCode { A, B, C1, C2 }
+    pub ChannelCode { Missing, A, B, C1, C2 }
 }
 
 impl fmt::Display for TalkerID {
@@ -28,16 +28,13 @@ impl fmt::Display for TalkerID {
 
 impl fmt::Display for ChannelCode {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            fmt,
-            "{}",
-            match self {
-                ChannelCode::A => 'A',
-                ChannelCode::B => 'B',
-                ChannelCode::C1 => '1',
-                ChannelCode::C2 => '2',
-            }
-        )
+        match self {
+            ChannelCode::Missing => Ok(()),
+            ChannelCode::A => write!(fmt, "A"),
+            ChannelCode::B => write!(fmt, "B"),
+            ChannelCode::C1 => write!(fmt, "1"),
+            ChannelCode::C2 => write!(fmt, "2"),
+        }
     }
 }
 
@@ -107,16 +104,16 @@ impl<'a> Nmea<'a> {
             terminated(alt((digit1.parse_to().map(Some), empty.value(None))), ',')
                 .context(StrContext::Label("message_id"))
                 .parse_next(s)?;
-        let channel = dispatch!(one_of(('A', 'B', '1', '2'));
-            'A' => empty.value(ChannelCode::A),
-            'B' => empty.value(ChannelCode::B),
-            '1' => empty.value(ChannelCode::C1),
-            '2' => empty.value(ChannelCode::C2),
+        let channel = dispatch!(one_of(('A', 'B', '1', '2',','));
+            ',' => empty.value(ChannelCode::Missing),
+            'A' => ','.map(|_| ChannelCode::A),
+            'B' => ','.map(|_| ChannelCode::B),
+            '1' => ','.map(|_| ChannelCode::C1),
+            '2' => ','.map(|_| ChannelCode::C2),
             _ => fail::<_, ChannelCode, _>,
         )
         .context(StrContext::Label("channel"))
         .parse_next(s)?;
-        ','.parse_next(s)?;
         let body = terminated(take_while(1.., ('0'..='W', '`'..='w')), ',')
             .context(StrContext::Label("body"))
             .parse_next(s)?;
