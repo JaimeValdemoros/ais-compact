@@ -65,7 +65,9 @@ pub struct Nmea<'a> {
 impl<'a> Nmea<'a> {
     pub fn parse(mut s: &'a str) -> anyhow::Result<Self> {
         use winnow::Parser;
-        Self::parse_inner.parse(&mut s).map_err(|e| anyhow::format_err!("\n{e}"))
+        Self::parse_inner
+            .parse(&mut s)
+            .map_err(|e| anyhow::format_err!("\n{e}"))
     }
 
     fn parse_inner(s: &mut &'a str) -> winnow::Result<Self> {
@@ -73,6 +75,7 @@ impl<'a> Nmea<'a> {
             Parser,
             ascii::digit1,
             combinator::{alt, dispatch, empty, fail, terminated},
+            error::StrContext,
             token::{one_of, take, take_while},
         };
         '!'.parse_next(s)?;
@@ -89,12 +92,21 @@ impl<'a> Nmea<'a> {
             "SA" => empty.value(TalkerID::SA),
             _ => fail::<_, TalkerID, _>,
         )
+        .context(StrContext::Label("talker_id"))
         .parse_next(s)?;
         "VDM,".parse_next(s)?;
-        let length: u8 = terminated(digit1, ',').parse_to().parse_next(s)?;
-        let index: u8 = terminated(digit1, ',').parse_to().parse_next(s)?;
+        let length: u8 = terminated(digit1, ',')
+            .parse_to()
+            .context(StrContext::Label("length"))
+            .parse_next(s)?;
+        let index: u8 = terminated(digit1, ',')
+            .parse_to()
+            .context(StrContext::Label("index"))
+            .parse_next(s)?;
         let message_id: Option<u8> =
-            terminated(alt((digit1.parse_to().map(Some), empty.value(None))), ',').parse_next(s)?;
+            terminated(alt((digit1.parse_to().map(Some), empty.value(None))), ',')
+                .context(StrContext::Label("message_id"))
+                .parse_next(s)?;
         let channel = dispatch!(one_of(('A', 'B', '1', '2'));
             'A' => empty.value(ChannelCode::A),
             'B' => empty.value(ChannelCode::B),
@@ -102,13 +114,19 @@ impl<'a> Nmea<'a> {
             '2' => empty.value(ChannelCode::C2),
             _ => fail::<_, ChannelCode, _>,
         )
+        .context(StrContext::Label("channel"))
         .parse_next(s)?;
-        let body = terminated(take_while(1.., ('0'..='W', '`'..='w')), ',').parse_next(s)?;
-        let fill_bits: char = terminated(one_of(('0'..'5',)), ',').parse_next(s)?;
+        let body = terminated(take_while(1.., ('0'..='W', '`'..='w')), ',')
+            .context(StrContext::Label("body"))
+            .parse_next(s)?;
+        let fill_bits: char = terminated(one_of(('0'..'5',)), ',')
+            .context(StrContext::Label("fill_bits"))
+            .parse_next(s)?;
         let fill_bits = u3::new(fill_bits as u8 - b'0').unwrap();
         '*'.parse_next(s)?;
         let checksum = take(2usize)
             .try_map(|s| u8::from_str_radix(s, 16))
+            .context(StrContext::Label("checksum"))
             .parse_next(s)?;
         let metadata = Metadata::new(
             talker_id,
