@@ -117,10 +117,10 @@ impl<'a> Nmea<'a> {
         let body = terminated(take_while(1.., ('0'..='W', '`'..='w')), ',')
             .context(StrContext::Label("body"))
             .parse_next(s)?;
-        let fill_bits: char = terminated(one_of(('0'..'5',)), '*')
+        let fill_bits: u3 = terminated(digit1, '*')
+            .parse_to()
             .context(StrContext::Label("fill_bits"))
             .parse_next(s)?;
-        let fill_bits = u3::new(fill_bits as u8 - b'0').unwrap();
         let checksum = take(2usize)
             .try_map(|s| u8::from_str_radix(s, 16))
             .context(StrContext::Label("checksum"))
