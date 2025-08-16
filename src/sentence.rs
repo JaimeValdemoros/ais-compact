@@ -119,6 +119,7 @@ impl<'a> Nmea<'a> {
             .parse_next(s)?;
         let fill_bits: u3 = terminated(digit1, '*')
             .parse_to()
+            .verify(|i: &u3| i.value() < 7)
             .context(StrContext::Label("fill_bits"))
             .parse_next(s)?;
         let checksum = take(2usize)
