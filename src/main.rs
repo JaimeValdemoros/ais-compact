@@ -1,5 +1,6 @@
 use std::io::{BufRead, Write};
 
+mod armor;
 mod sentence;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,7 +16,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
         match sentence::Nmea::parse(line.trim_end()) {
-            Ok(sentence) => {
+            Ok(mut sentence) => {
+                let _ = armor::unpack(sentence.body, sentence.metadata.fill_bits().get().value())
+                    .unwrap();
                 writeln!(stdout, "{}", sentence)?;
             }
             Err(e) => eprintln!("{e}"),
