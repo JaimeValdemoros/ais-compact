@@ -20,7 +20,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let (data, drop_bits) =
                     armor::unpack(sentence.body, sentence.metadata.fill_bits().get().value())
                         .unwrap();
-                let (packed, fill) = armor::pack(&data, drop_bits).unwrap();
+                let Ok((packed, fill)) =
+                    armor::pack(&data, drop_bits).inspect_err(|e| eprintln!("{sentence} => {e}"))
+                else {
+                    continue;
+                };
                 sentence.body = &packed;
                 sentence
                     .metadata

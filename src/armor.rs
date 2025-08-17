@@ -1,4 +1,4 @@
-pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8), ()> {
+pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8), &'static str> {
     // Prepare character iterator
     let mut iter = input.chars();
 
@@ -85,17 +85,17 @@ fn truncate(x: u8, fill_bits: u8) -> u8 {
     x & (0xff << fill_bits)
 }
 
-fn decode(c: char) -> Result<u8, ()> {
+fn decode(c: char) -> Result<u8, &'static str> {
     match c {
         '0'..='W' => Ok(u8::try_from(c).unwrap() - 48),
         '`'..='w' => Ok(u8::try_from(c).unwrap() - 56),
-        _ => Err(()),
+        _ => Err("decode - invalid char"),
     }
 }
 
-fn encode(x: u8) -> Result<char, ()> {
+fn encode(x: u8) -> Result<char, &'static str> {
     if x & 0xC0 != 0 {
-        return Err(());
+        return Err("encode - invalid char");
     } else {
         if x < 40 {
             Ok((x + b'0').into())
@@ -105,12 +105,12 @@ fn encode(x: u8) -> Result<char, ()> {
     }
 }
 
-pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), ()> {
+pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), &'static str> {
     assert!(drop_bits < 8);
     let mut out = String::with_capacity((data.len() * 8).div_ceil(6));
     let (slices, rem) = data.as_chunks::<3>();
     let Some((last_slice, slices)) = slices.split_last() else {
-        return Err(());
+        return Err("data.len() < 3");
     };
     for [a, b, c] in slices {
         // aaaaaaaa bbbbbbbb cccccccc =>
