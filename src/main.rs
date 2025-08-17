@@ -1,4 +1,4 @@
-use std::io::{BufRead, Write};
+use std::io::BufRead;
 
 mod armor;
 mod sentence;
@@ -6,7 +6,6 @@ mod sentence;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut line = String::new();
     let mut stdin = std::io::stdin().lock();
-    let mut stdout = std::io::stdout().lock();
     loop {
         line.clear();
         if stdin.read_line(&mut line)? == 0 {
@@ -25,12 +24,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 else {
                     continue;
                 };
-                sentence.body = &packed;
+                let original = std::mem::replace(&mut sentence.body, &packed);
                 sentence
                     .metadata
                     .fill_bits()
                     .set(bit_struct::u3::new(fill).unwrap());
-                writeln!(stdout, "{}", sentence)?;
+                if original != packed {
+                    eprintln!(
+                        "{} - {}\n{data:x?} - {drop_bits}\n{sentence}",
+                        line.trim_end(),
+                        sentence.metadata.fill_bits().get()
+                    );
+                }
             }
             Err(e) => eprintln!("{e}"),
         }
