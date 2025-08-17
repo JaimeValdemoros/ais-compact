@@ -89,3 +89,44 @@ fn decode(c: char) -> Result<u8, ()> {
         _ => Err(()),
     }
 }
+
+fn encode(x: u8) -> Result<char, ()> {
+    if x & 0xC0 != 0 {
+        return Err(());
+    } else {
+        if x < 40 {
+            Ok((x + b'0').into())
+        } else {
+            Ok((x - 40 + b'`').into())
+        }
+    }
+}
+
+pub fn pack(data: &[u8]) -> Result<(String, u8), ()> {
+    let mut out = String::with_capacity((data.len() * 8).div_ceil(6));
+    let (slices, rem) = data.as_chunks::<3>();
+    for [a, b, c] in slices {
+        // aaaaaaaa bbbbbbbb cccccccc =>
+        // 00aaaaaa 00aabbbb 00bbbbcc 00ccccccc
+        out.push(encode(a >> 2)?);
+        out.push(encode(((a & 0x3) << 4) | (b >> 4))?);
+        out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
+        out.push(encode(c & 0x3f)?);
+    }
+    let fill_bits = match rem {
+        [] => 0u8,
+        [a] => {
+            out.push(encode(a >> 2)?);
+            out.push(encode((a & 0x3) << 4)?);
+            4u8
+        }
+        [a, b] => {
+            out.push(encode(a >> 2)?);
+            out.push(encode(((a & 0x3) << 4) | (b >> 4))?);
+            out.push(encode((b & 0x0f) << 2)?);
+            2u8
+        }
+        _ => unreachable!(),
+    };
+    Ok((out, fill_bits))
+}
