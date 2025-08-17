@@ -131,7 +131,7 @@ pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), &'static str> {
         // check whether to drop the last 6bit
         c &= 0xff << drop_bits;
         out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
-        if drop_bits < 7 {
+        if drop_bits < 6 {
             out.push(encode(c & 0x3f)?);
         }
         drop_bits
@@ -187,8 +187,9 @@ mod tests {
             .set(bit_struct::u3::new(fill).unwrap());
         if original != packed {
             panic!(
-                "{input} - {}\n{data:02X?} - {drop_bits}\n{sentence}",
-                sentence.metadata.fill_bits().get()
+                "{input} - {}\n{data:02X?}({}) - {drop_bits}\n{sentence}",
+                sentence.metadata.fill_bits().get(),
+                data.len()
             );
         };
     }
@@ -196,5 +197,10 @@ mod tests {
     #[test]
     fn test_aligned() {
         run_roundtrip("!AIVDM,1,1,,A,13HOI:0P0000VOHLCnHQKwvL05Ip,0*23");
+    }
+
+    #[test]
+    fn test_unpacked_has_6_fillbits() {
+        run_roundtrip("!AIVDM,2,1,1,B,53cjbg00?ImDTs;;;J0l4Tr22222222222222209000,0*51");
     }
 }
