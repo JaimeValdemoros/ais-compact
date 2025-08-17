@@ -193,19 +193,16 @@ mod tests {
         let mut sentence = crate::sentence::Nmea::parse(input).unwrap();
 
         let (data, drop_bits, garbage) =
-            unpack(sentence.body, sentence.metadata.fill_bits().get().value()).unwrap();
+            unpack(sentence.body, sentence.metadata.fill_bits.value()).unwrap();
         let (packed, fill) =
             pack(&data, drop_bits, garbage).unwrap_or_else(|e| panic!("{sentence} => {e}"));
 
         let original = std::mem::replace(&mut sentence.body, &packed);
-        sentence
-            .metadata
-            .fill_bits()
-            .set(bit_struct::u3::new(fill).unwrap());
+        sentence.metadata.fill_bits = bit_struct::u3::new(fill).unwrap();
         if original != packed {
             panic!(
                 "{input} - {}\n{data:02X?}({}) - {drop_bits}\n{sentence}",
-                sentence.metadata.fill_bits().get(),
+                sentence.metadata.fill_bits,
                 data.len()
             );
         };
