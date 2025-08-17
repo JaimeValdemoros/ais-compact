@@ -1,4 +1,4 @@
-pub fn unpack(input: &str, fill_bits: u8) -> Result<Vec<u8>, ()> {
+pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8), ()> {
     // Prepare character iterator
     let mut iter = input.chars();
 
@@ -6,7 +6,7 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<Vec<u8>, ()> {
     // packed into bytes
     let mut out = Vec::with_capacity((input.len() * 6 - fill_bits as usize).div_ceil(8));
 
-    loop {
+    let leftover_bits: u8 = loop {
         // Work over groups of 4. Chars implements FusedIterator, which
         // guarantees that if a next() call returns None, then all subsequent
         // next() calls will also return None.
@@ -34,31 +34,33 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<Vec<u8>, ()> {
                         a << 2 | b >> 4,
                         b << 4 | c >> 2,
                         truncate(c, fill_bits) << 6,
-                    ])
+                    ]);
+                    break fill_bits + 6;
                 } else {
                     // 00aaaaaa 00bbbbbb 00cccccc =>
                     // aaaaaabb bbbbcccc
-                    out.extend([a << 2 | b >> 4, b << 4 | (truncate(c, fill_bits) >> 2)])
+                    out.extend([a << 2 | b >> 4, b << 4 | (truncate(c, fill_bits) >> 2)]);
+                    break fill_bits - 2;
                 }
-                break;
             }
             (Some(a), Some(b), None, None) => {
                 if fill_bits < 4 {
                     // 00aaaaaa 00bbbbbb =>
                     // aaaaaabb bbbb0000
-                    out.extend([a << 2 | b >> 4, truncate(b, fill_bits) << 4])
+                    out.extend([a << 2 | b >> 4, truncate(b, fill_bits) << 4]);
+                    break fill_bits + 4;
                 } else {
                     // 00aaaaaa 00bbbbbb =>
                     // aaaaaabb
-                    out.push(a << 2 | truncate(b, fill_bits) >> 4)
+                    out.push(a << 2 | truncate(b, fill_bits) >> 4);
+                    break fill_bits - 4;
                 }
-                break;
             }
             (Some(a), None, None, None) => {
                 // 00aaaaaa =>
                 // aaaaaa00
                 out.push(truncate(a, fill_bits) << 2);
-                break;
+                break fill_bits + 2;
             }
             (None, None, None, None) => {
                 // Done but we already processed the bytes in the last
@@ -70,12 +72,13 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<Vec<u8>, ()> {
                 {
                     *last &= 0xff << fill_bits;
                 }
-                break;
+                break fill_bits;
             }
             _ => unreachable!(),
         };
-    }
-    Ok(out)
+    };
+    assert!(leftover_bits < 8);
+    Ok((out, leftover_bits))
 }
 
 fn truncate(x: u8, fill_bits: u8) -> u8 {
@@ -102,31 +105,66 @@ fn encode(x: u8) -> Result<char, ()> {
     }
 }
 
-pub fn pack(data: &[u8]) -> Result<(String, u8), ()> {
+pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), ()> {
+    assert!(drop_bits < 8);
     let mut out = String::with_capacity((data.len() * 8).div_ceil(6));
     let (slices, rem) = data.as_chunks::<3>();
+    let Some((last_slice, slices)) = slices.split_last() else {
+        return Err(());
+    };
     for [a, b, c] in slices {
         // aaaaaaaa bbbbbbbb cccccccc =>
         // 00aaaaaa 00aabbbb 00bbbbcc 00ccccccc
         out.push(encode(a >> 2)?);
-        out.push(encode(((a & 0x3) << 4) | (b >> 4))?);
+        out.push(encode(((a & 0x03) << 4) | (b >> 4))?);
         out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
         out.push(encode(c & 0x3f)?);
     }
-    let fill_bits = match rem {
-        [] => 0u8,
-        [a] => {
-            out.push(encode(a >> 2)?);
-            out.push(encode((a & 0x3) << 4)?);
-            4u8
+
+    // aaaaaaaa bbbbbbbb cccccccc [ddddddd eeeeeeee] =>
+    // 00aaaaaa 00aabbbb 00bbbbcc 00ccccccc [00dddddd 00ddeeee 00eeee00]
+    let [a, b, mut c] = *last_slice;
+    out.push(encode(a >> 2)?);
+    out.push(encode(((a & 0x03) << 4) | (b >> 4))?);
+
+    let fill_bits = if rem.is_empty() {
+        // check whether to drop the last 6bit
+        c &= 0xff << drop_bits;
+        out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
+        if drop_bits < 7 {
+            out.push(encode(c >> 2)?);
         }
-        [a, b] => {
-            out.push(encode(a >> 2)?);
-            out.push(encode(((a & 0x3) << 4) | (b >> 4))?);
-            out.push(encode((b & 0x0f) << 2)?);
-            2u8
+        drop_bits
+    } else {
+        // rem not empty, so just write the remaining bytes
+        out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
+        out.push(encode(c & 0x3f)?);
+
+        // now handle rem
+        match *rem {
+            [mut d] => {
+                d &= 0xff << drop_bits;
+                out.push(encode(d >> 2)?);
+                if drop_bits < 2 {
+                    out.push(encode((d & 0x03) << 4)?);
+                    drop_bits + 4
+                } else {
+                    drop_bits - 2
+                }
+            }
+            [d, mut e] => {
+                e &= 0xff << drop_bits;
+                out.push(encode(d >> 2)?);
+                out.push(encode(((d & 0x03) << 4) | (e >> 4))?);
+                if drop_bits < 4 {
+                    out.push(encode((e & 0x0f) << 2)?);
+                    drop_bits + 2
+                } else {
+                    drop_bits - 4
+                }
+            }
+            _ => unreachable!(),
         }
-        _ => unreachable!(),
     };
     Ok((out, fill_bits))
 }

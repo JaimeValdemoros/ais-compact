@@ -17,10 +17,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         match sentence::Nmea::parse(line.trim_end()) {
             Ok(mut sentence) => {
-                let data =
+                let (data, drop_bits) =
                     armor::unpack(sentence.body, sentence.metadata.fill_bits().get().value())
                         .unwrap();
-                let (packed, fill) = armor::pack(&data).unwrap();
+                let (packed, fill) = armor::pack(&data, drop_bits).unwrap();
                 sentence.body = &packed;
                 sentence
                     .metadata
