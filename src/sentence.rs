@@ -50,11 +50,10 @@ pub struct Metadata {
     pub checksum: u8,
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Nmea<'a> {
     pub metadata: Metadata,
-    pub body: &'a str,
+    pub body: std::borrow::Cow<'a, str>,
 }
 
 impl<'a> Nmea<'a> {
@@ -134,7 +133,10 @@ impl<'a> Nmea<'a> {
             fill_bits,
             checksum,
         };
-        Ok(Nmea { metadata, body })
+        Ok(Nmea {
+            metadata,
+            body: body.into(),
+        })
     }
 }
 

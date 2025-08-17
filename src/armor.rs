@@ -116,7 +116,7 @@ fn encode(x: u8) -> Result<char, &'static str> {
     }
 }
 
-pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u8), &'static str> {
+pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u3), &'static str> {
     let drop_bits: u8 = drop_bits.value();
 
     let mut out = String::with_capacity((data.len() * 8).div_ceil(6));
@@ -182,7 +182,7 @@ pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u8), &'s
             _ => unreachable!(),
         }
     };
-    Ok((out, fill_bits))
+    Ok((out, u3::new(fill_bits).expect("u3 overflow")))
 }
 
 #[cfg(test)]
@@ -193,12 +193,12 @@ mod tests {
         let mut sentence = crate::sentence::Nmea::parse(input).unwrap();
 
         let (data, drop_bits, garbage) =
-            unpack(sentence.body, sentence.metadata.fill_bits.value()).unwrap();
-        let (packed, fill) =
+            unpack(&*sentence.body, sentence.metadata.fill_bits.value()).unwrap();
+        let (packed, fill_bits) =
             pack(&data, drop_bits, garbage).unwrap_or_else(|e| panic!("{sentence} => {e}"));
 
-        let original = std::mem::replace(&mut sentence.body, &packed);
-        sentence.metadata.fill_bits = bit_struct::u3::new(fill).unwrap();
+        let original = std::mem::replace(&mut sentence.body, (&packed).into());
+        sentence.metadata.fill_bits = fill_bits;
         if original != packed {
             panic!(
                 "{input} - {}\n{data:02X?}({}) - {drop_bits}\n{sentence}",

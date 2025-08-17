@@ -2,7 +2,7 @@ include!(concat!(env!("OUT_DIR"), "/proto_generated/mod.rs"));
 
 bit_struct::bit_struct! {
     // u8 is the base storage type. This can be any multiple of 8
-    pub struct Metadata(u64) {
+    pub struct EncodedMetadata(u64) {
         talker: crate::sentence::TalkerID,
         length: u8,
         index: u8,
@@ -31,9 +31,9 @@ impl<'a, 'b> From<&'a crate::sentence::Nmea<'b>> for spec::message::Types {
             fill_bits,
             checksum,
         } = sentence.metadata;
-        match crate::armor::unpack(sentence.body, fill_bits.value()) {
+        match crate::armor::unpack(&*sentence.body, fill_bits.value()) {
             Ok((data, drop_bits, garbage_bits)) => {
-                let metadata = Metadata::new(
+                let metadata = EncodedMetadata::new(
                     talker,
                     length,
                     index,
@@ -86,5 +86,104 @@ impl std::str::FromStr for spec::Message {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         s.parse::<spec::message::Types>().map(Into::into)
+    }
+}
+
+impl<'a> TryFrom<&'a spec::Encoded> for crate::sentence::Nmea<'a> {
+    type Error = anyhow::Error;
+    fn try_from(e: &'a spec::Encoded) -> Result<Self, Self::Error> {
+        let Ok(mut metadata) = EncodedMetadata::try_from(e.metadata()) else {
+            anyhow::bail!("Failed to parse metadata");
+        };
+        let Ok((packed, fill_bits)) = crate::armor::pack(
+            e.body(),
+            metadata.drop_bits().get(),
+            metadata.garbage_bits().get(),
+        ) else {
+            anyhow::bail!("Failed to read packing");
+        };
+
+        Ok(crate::sentence::Nmea {
+            metadata: crate::sentence::Metadata {
+                talker: metadata.talker().get(),
+                length: metadata.length().get(),
+                index: metadata.index().get(),
+                message_id: metadata.message_id().get(),
+                channel: metadata.channel().get(),
+                fill_bits,
+                checksum: metadata.checksum().get(),
+            },
+            body: packed.into(),
+        })
+    }
+}
+
+// The protobuf-generated code incldues a Display impl, so we need
+// to wrap it in a newtype to provide our own implementation
+pub struct MessageWrapper<'a>(pub &'a spec::Message);
+
+impl<'a> std::fmt::Display for MessageWrapper<'a> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.0.has_encoded() {
+            let e = self.0.encoded();
+            let nmea = crate::sentence::Nmea::try_from(e).unwrap();
+            write!(fmt, "{nmea}")?;
+        } else if self.0.has_raw() {
+            write!(fmt, "{}", self.0.raw())?;
+        } else {
+            panic!("Unexpected message type");
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_valid() {
+        let s = "!AIVDM,1,1,,A,13HOI:0P0000VOHLCnHQKwvL05Ip,0*23";
+        match s.parse::<spec::Message>() {
+            Ok(m) => {
+                assert!(m.has_encoded());
+                assert!(!m.has_raw());
+            }
+            Err(e) => match e {},
+        }
+    }
+
+    #[test]
+    fn test_invalid_fill_bits() {
+        let s = "!AIVDM,1,1,,2,601uEP19bi7P04810,6*5D";
+        match s.parse::<spec::Message>() {
+            Ok(m) => {
+                assert!(!m.has_encoded());
+                assert!(m.has_raw());
+                assert!(m.raw() == s);
+                assert!(MessageWrapper(&m).to_string() == s);
+            }
+            Err(e) => match e {},
+        }
+    }
+
+    #[test]
+    fn test_full_round_trip_valid() {
+        use protobuf::Message;
+
+        let s = "!AIVDM,2,1,3,A,55Upuv00?I98cQW?OC<th4P0000000000000000U40?,0*3B";
+        match s.parse::<spec::Message>() {
+            Ok(m) => {
+                let arr = m.write_length_delimited_to_bytes().unwrap();
+                let mut cursor = std::io::Cursor::new(arr);
+                let out = protobuf::CodedInputStream::new(&mut cursor)
+                    .read_message::<spec::Message>()
+                    .unwrap();
+                assert!(out.has_encoded());
+                assert!(!out.has_raw());
+                assert_eq!(MessageWrapper(&out).to_string(), s);
+            }
+            Err(e) => match e {},
+        }
     }
 }
