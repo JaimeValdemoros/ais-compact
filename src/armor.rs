@@ -145,10 +145,11 @@ pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u3), &'s
         if drop_bits < 6 {
             out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
             out.push(encode((c & 0x3f) | garbage)?);
+            drop_bits
         } else {
             out.push(encode(((b & 0x0f) << 2) | (c >> 6) | garbage)?);
+            drop_bits - 6
         }
-        drop_bits
     } else {
         // rem not empty, so just write the remaining bytes
         out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
@@ -190,18 +191,36 @@ mod tests {
     use super::*;
 
     fn run_roundtrip(input: &str) {
-        let mut sentence = crate::sentence::Nmea::parse(input).unwrap();
+        let sentence = crate::sentence::Nmea::parse(input).unwrap();
+        let crate::sentence::Metadata {
+            talker,
+            length,
+            index,
+            message_id,
+            channel,
+            fill_bits,
+            checksum,
+        } = sentence.metadata;
 
-        let (data, drop_bits, garbage) =
-            unpack(&*sentence.body, sentence.metadata.fill_bits.value()).unwrap();
+        let (data, drop_bits, garbage) = unpack(&*sentence.body, fill_bits.value()).unwrap();
         let (packed, fill_bits) =
             pack(&data, drop_bits, garbage).unwrap_or_else(|e| panic!("{sentence} => {e}"));
 
-        let original = std::mem::replace(&mut sentence.body, (&packed).into());
-        sentence.metadata.fill_bits = fill_bits;
-        if original != packed {
+        let new_sentence = crate::sentence::Nmea {
+            metadata: crate::sentence::Metadata {
+                talker,
+                length,
+                index,
+                message_id,
+                channel,
+                fill_bits,
+                checksum,
+            },
+            body: packed.into(),
+        };
+        if new_sentence.to_string() != input {
             panic!(
-                "{input} - {}\n{data:02X?}({}) - {drop_bits}\n{sentence}",
+                "{input} - {}\n{data:02X?}({}) - {drop_bits}\n{new_sentence}",
                 sentence.metadata.fill_bits,
                 data.len()
             );
