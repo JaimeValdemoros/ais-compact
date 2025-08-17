@@ -16,11 +16,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         match sentence::Nmea::parse(line.trim_end()) {
             Ok(mut sentence) => {
-                let (data, drop_bits) =
+                let (data, drop_bits, garbage) =
                     armor::unpack(sentence.body, sentence.metadata.fill_bits().get().value())
                         .unwrap();
-                let Ok((packed, fill)) =
-                    armor::pack(&data, drop_bits).inspect_err(|e| eprintln!("{sentence} => {e}"))
+                let Ok((packed, fill)) = armor::pack(&data, drop_bits, garbage)
+                    .inspect_err(|e| eprintln!("{sentence} => {e}"))
                 else {
                     continue;
                 };

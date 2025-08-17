@@ -1,4 +1,4 @@
-pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8), &'static str> {
+pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8, u8), &'static str> {
     // Prepare character iterator
     let mut iter = input.chars();
 
@@ -6,7 +6,7 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8), &'static str>
     // packed into bytes
     let mut out = Vec::with_capacity((input.len() * 6 - fill_bits as usize).div_ceil(8));
 
-    let leftover_bits: u8 = loop {
+    let (leftover_bits, garbage): (u8, u8) = loop {
         // Work over groups of 4. Chars implements FusedIterator, which
         // guarantees that if a next() call returns None, then all subsequent
         // next() calls will also return None.
@@ -35,12 +35,12 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8), &'static str>
                         b << 4 | c >> 2,
                         truncate(c, fill_bits) << 6,
                     ]);
-                    break fill_bits + 6;
+                    break (fill_bits + 6, extract_garbage(c, fill_bits));
                 } else {
                     // 00aaaaaa 00bbbbbb 00cccccc =>
                     // aaaaaabb bbbbcccc
                     out.extend([a << 2 | b >> 4, b << 4 | (truncate(c, fill_bits) >> 2)]);
-                    break fill_bits - 2;
+                    break (fill_bits - 2, extract_garbage(c, fill_bits));
                 }
             }
             (Some(a), Some(b), None, None) => {
@@ -48,37 +48,43 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8), &'static str>
                     // 00aaaaaa 00bbbbbb =>
                     // aaaaaabb bbbb0000
                     out.extend([a << 2 | b >> 4, truncate(b, fill_bits) << 4]);
-                    break fill_bits + 4;
+                    break (fill_bits + 4, extract_garbage(b, fill_bits));
                 } else {
                     // 00aaaaaa 00bbbbbb =>
                     // aaaaaabb
                     out.push(a << 2 | truncate(b, fill_bits) >> 4);
-                    break fill_bits - 4;
+                    break (fill_bits - 4, extract_garbage(b, fill_bits));
                 }
             }
             (Some(a), None, None, None) => {
                 // 00aaaaaa =>
                 // aaaaaa00
                 out.push(truncate(a, fill_bits) << 2);
-                break fill_bits + 2;
+                break (fill_bits + 2, extract_garbage(a, fill_bits));
             }
             (None, None, None, None) => {
                 // Done but we already processed the bytes in the last
                 // iteration.
                 // Last iteration would have been a set of 4, so we can
                 // just drop the bits off the last byte.
+                let mut garbage = 0u8;
                 if fill_bits > 0
                     && let Some(last) = out.last_mut()
                 {
+                    garbage = extract_garbage(*last, fill_bits);
                     *last &= 0xff << fill_bits;
                 }
-                break fill_bits;
+                break (fill_bits, garbage);
             }
             _ => unreachable!(),
         };
     };
     assert!(leftover_bits < 8);
-    Ok((out, leftover_bits))
+    Ok((out, leftover_bits, garbage))
+}
+
+fn extract_garbage(x: u8, fill_bits: u8) -> u8 {
+    x & !(0xff << fill_bits)
 }
 
 fn truncate(x: u8, fill_bits: u8) -> u8 {
@@ -105,7 +111,7 @@ fn encode(x: u8) -> Result<char, &'static str> {
     }
 }
 
-pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), &'static str> {
+pub fn pack(data: &[u8], drop_bits: u8, garbage: u8) -> Result<(String, u8), &'static str> {
     assert!(drop_bits < 8);
     let mut out = String::with_capacity((data.len() * 8).div_ceil(6));
     let (slices, rem) = data.as_chunks::<3>();
@@ -130,9 +136,11 @@ pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), &'static str> {
     let fill_bits = if rem.is_empty() {
         // check whether to drop the last 6bit
         c &= 0xff << drop_bits;
-        out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
         if drop_bits < 6 {
-            out.push(encode(c & 0x3f)?);
+            out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
+            out.push(encode((c & 0x3f) | garbage)?);
+        } else {
+            out.push(encode(((b & 0x0f) << 2) | (c >> 6) | garbage)?);
         }
         drop_bits
     } else {
@@ -144,22 +152,24 @@ pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), &'static str> {
         match *rem {
             [mut d] => {
                 d &= 0xff << drop_bits;
-                out.push(encode(d >> 2)?);
                 if drop_bits < 2 {
-                    out.push(encode((d & 0x03) << 4)?);
+                    out.push(encode(d >> 2)?);
+                    out.push(encode(((d & 0x03) << 4) | garbage)?);
                     drop_bits + 4
                 } else {
+                    out.push(encode((d >> 2) | garbage)?);
                     drop_bits - 2
                 }
             }
             [d, mut e] => {
                 e &= 0xff << drop_bits;
                 out.push(encode(d >> 2)?);
-                out.push(encode(((d & 0x03) << 4) | (e >> 4))?);
                 if drop_bits < 4 {
-                    out.push(encode((e & 0x0f) << 2)?);
+                    out.push(encode(((d & 0x03) << 4) | (e >> 4))?);
+                    out.push(encode(((e & 0x0f) << 2) | garbage)?);
                     drop_bits + 2
                 } else {
+                    out.push(encode(((d & 0x03) << 4) | (e >> 4) | garbage)?);
                     drop_bits - 4
                 }
             }
@@ -176,9 +186,10 @@ mod tests {
     fn run_roundtrip(input: &str) {
         let mut sentence = crate::sentence::Nmea::parse(input).unwrap();
 
-        let (data, drop_bits) =
+        let (data, drop_bits, garbage) =
             unpack(sentence.body, sentence.metadata.fill_bits().get().value()).unwrap();
-        let (packed, fill) = pack(&data, drop_bits).unwrap_or_else(|e| panic!("{sentence} => {e}"));
+        let (packed, fill) =
+            pack(&data, drop_bits, garbage).unwrap_or_else(|e| panic!("{sentence} => {e}"));
 
         let original = std::mem::replace(&mut sentence.body, &packed);
         sentence
@@ -202,5 +213,12 @@ mod tests {
     #[test]
     fn test_unpacked_has_6_fillbits() {
         run_roundtrip("!AIVDM,2,1,1,B,53cjbg00?ImDTs;;;J0l4Tr22222222222222209000,0*51");
+    }
+
+    #[test]
+    fn test_nonzero_garbage_bits() {
+        run_roundtrip(
+            "!AIVDM,1,1,,A,802R5Ph0BkDhjPF?qRGbOwwwwwwwwwww2wwwwwwwwwwwwwwwwwwwwwwwwww,2*3B",
+        );
     }
 }
