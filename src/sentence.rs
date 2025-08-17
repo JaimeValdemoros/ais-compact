@@ -130,7 +130,7 @@ impl<'a> Nmea<'a> {
             talker_id,
             length,
             index,
-            message_id.unwrap_or(0u8),
+            message_id.unwrap_or(0xffu8),
             channel,
             fill_bits,
             checksum,
@@ -148,7 +148,7 @@ impl<'a> fmt::Display for Nmea<'a> {
         let length = m.length().get();
         let index = m.index().get();
         let message_id = m.message_id().get();
-        let message_id = if message_id == 0 {
+        let message_id = if message_id == 0xff {
             Either::Left("")
         } else {
             Either::Right(message_id)
