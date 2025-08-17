@@ -57,10 +57,7 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<Vec<u8>, ()> {
             (Some(a), None, None, None) => {
                 // 00aaaaaa =>
                 // aaaaaa00
-                if fill_bits < 6 {
-                    out.push(truncate(a, fill_bits) << 2);
-                }
-                // Otherwise if fill_bytes == 6, we ignore the last entry
+                out.push(truncate(a, fill_bits) << 2);
                 break;
             }
             (None, None, None, None) => {
