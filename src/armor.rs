@@ -132,7 +132,7 @@ pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), &'static str> {
         c &= 0xff << drop_bits;
         out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
         if drop_bits < 7 {
-            out.push(encode(c >> 2)?);
+            out.push(encode(c & 0x3f)?);
         }
         drop_bits
     } else {
@@ -167,4 +167,34 @@ pub fn pack(data: &[u8], drop_bits: u8) -> Result<(String, u8), &'static str> {
         }
     };
     Ok((out, fill_bits))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run_roundtrip(input: &str) {
+        let mut sentence = crate::sentence::Nmea::parse(input).unwrap();
+
+        let (data, drop_bits) =
+            unpack(sentence.body, sentence.metadata.fill_bits().get().value()).unwrap();
+        let (packed, fill) = pack(&data, drop_bits).unwrap_or_else(|e| panic!("{sentence} => {e}"));
+
+        let original = std::mem::replace(&mut sentence.body, &packed);
+        sentence
+            .metadata
+            .fill_bits()
+            .set(bit_struct::u3::new(fill).unwrap());
+        if original != packed {
+            panic!(
+                "{input} - {}\n{data:02X?} - {drop_bits}\n{sentence}",
+                sentence.metadata.fill_bits().get()
+            );
+        };
+    }
+
+    #[test]
+    fn test_aligned() {
+        run_roundtrip("!AIVDM,1,1,,A,13HOI:0P0000VOHLCnHQKwvL05Ip,0*23");
+    }
 }

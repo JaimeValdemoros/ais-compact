@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .set(bit_struct::u3::new(fill).unwrap());
                 if original != packed {
                     eprintln!(
-                        "{} - {}\n{data:x?} - {drop_bits}\n{sentence}",
+                        "{} - {}\n{data:02X?} - {drop_bits}\n{sentence}",
                         line.trim_end(),
                         sentence.metadata.fill_bits().get()
                     );
