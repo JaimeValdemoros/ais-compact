@@ -158,7 +158,7 @@ impl<'a> fmt::Display for Nmea<'a> {
         let checksum = m.checksum().get();
         write!(
             fmt,
-            "!{talker}VDM,{length},{index},{message_id},{channel},{body},{fill_bits}*{checksum:X}"
+            "!{talker}VDM,{length},{index},{message_id},{channel},{body},{fill_bits}*{checksum:02X}"
         )
     }
 }
