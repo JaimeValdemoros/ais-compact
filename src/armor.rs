@@ -116,7 +116,7 @@ fn encode(x: u8) -> Result<char, &'static str> {
     }
 }
 
-pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u8), &'static str> {
+pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u3), &'static str> {
     let drop_bits: u8 = drop_bits.value();
 
     let mut out = String::with_capacity((data.len() * 8).div_ceil(6));
@@ -145,10 +145,11 @@ pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u8), &'s
         if drop_bits < 6 {
             out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
             out.push(encode((c & 0x3f) | garbage)?);
+            drop_bits
         } else {
             out.push(encode(((b & 0x0f) << 2) | (c >> 6) | garbage)?);
+            drop_bits - 6
         }
-        drop_bits
     } else {
         // rem not empty, so just write the remaining bytes
         out.push(encode(((b & 0x0f) << 2) | (c >> 6))?);
@@ -182,7 +183,7 @@ pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u8), &'s
             _ => unreachable!(),
         }
     };
-    Ok((out, fill_bits))
+    Ok((out, u3::new(fill_bits).expect("u3 overflow")))
 }
 
 #[cfg(test)]
@@ -190,22 +191,37 @@ mod tests {
     use super::*;
 
     fn run_roundtrip(input: &str) {
-        let mut sentence = crate::sentence::Nmea::parse(input).unwrap();
+        let sentence = crate::sentence::Nmea::parse(input).unwrap();
+        let crate::sentence::Metadata {
+            talker,
+            length,
+            index,
+            message_id,
+            channel,
+            fill_bits,
+            checksum,
+        } = sentence.metadata;
 
-        let (data, drop_bits, garbage) =
-            unpack(sentence.body, sentence.metadata.fill_bits().get().value()).unwrap();
-        let (packed, fill) =
+        let (data, drop_bits, garbage) = unpack(&*sentence.body, fill_bits.value()).unwrap();
+        let (packed, fill_bits) =
             pack(&data, drop_bits, garbage).unwrap_or_else(|e| panic!("{sentence} => {e}"));
 
-        let original = std::mem::replace(&mut sentence.body, &packed);
-        sentence
-            .metadata
-            .fill_bits()
-            .set(bit_struct::u3::new(fill).unwrap());
-        if original != packed {
+        let new_sentence = crate::sentence::Nmea {
+            metadata: crate::sentence::Metadata {
+                talker,
+                length,
+                index,
+                message_id,
+                channel,
+                fill_bits,
+                checksum,
+            },
+            body: packed.into(),
+        };
+        if new_sentence.to_string() != input {
             panic!(
-                "{input} - {}\n{data:02X?}({}) - {drop_bits}\n{sentence}",
-                sentence.metadata.fill_bits().get(),
+                "{input} - {}\n{data:02X?}({}) - {drop_bits}\n{new_sentence}",
+                sentence.metadata.fill_bits,
                 data.len()
             );
         };

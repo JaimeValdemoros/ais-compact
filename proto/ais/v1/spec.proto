@@ -1,0 +1,16 @@
+// proto/ais/v1/spec.proto
+edition = "2023";
+
+package ais.v1;
+
+message Encoded {
+  fixed64 metadata = 1;
+  bytes body = 2;
+}
+
+message Message {
+  oneof types {
+    string raw = 1;
+    Encoded encoded = 2;
+  }
+}

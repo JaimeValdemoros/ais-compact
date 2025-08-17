@@ -22,6 +22,8 @@
         alejandra.enable = true;
         # Rust
         rustfmt.enable = true;
+        # Protobuf
+        protolint.enable = true;
       };
     };
     treefmtEval = eachSystem (pkgs: inputs.treefmt-nix.lib.evalModule pkgs treefmt-config);
@@ -42,7 +44,7 @@
           inputsFrom = [
             self.packages.${pkgs.system}.unarmor
           ];
-          buildInputs = with pkgs; [];
+          buildInputs = with pkgs; [buf];
         }
     );
 

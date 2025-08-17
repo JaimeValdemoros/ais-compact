@@ -38,25 +38,22 @@ impl fmt::Display for ChannelCode {
     }
 }
 
-bit_struct! {
-    // u8 is the base storage type. This can be any multiple of 8
-    pub struct Metadata(u64) {
-        talker: TalkerID,
-        length: u8,
-        index: u8,
-        message_id: u8,
-        channel: ChannelCode,
-        // 0 <= fill_bits <= 5
-        fill_bits: u3,
-        checksum: u8,
-    }
+#[derive(Debug)]
+pub struct Metadata {
+    pub talker: TalkerID,
+    pub length: u8,
+    pub index: u8,
+    pub message_id: u8,
+    pub channel: ChannelCode,
+    // 0 <= fill_bits <= 5
+    pub fill_bits: u3,
+    pub checksum: u8,
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Nmea<'a> {
     pub metadata: Metadata,
-    pub body: &'a str,
+    pub body: std::borrow::Cow<'a, str>,
 }
 
 impl<'a> Nmea<'a> {
@@ -76,7 +73,7 @@ impl<'a> Nmea<'a> {
             token::{one_of, take, take_while},
         };
         '!'.parse_next(s)?;
-        let talker_id = dispatch!(take(2usize);
+        let talker = dispatch!(take(2usize);
             "AB" => empty.value(TalkerID::AB),
             "AD" => empty.value(TalkerID::AD),
             "AI" => empty.value(TalkerID::AI),
@@ -102,6 +99,7 @@ impl<'a> Nmea<'a> {
             .parse_next(s)?;
         let message_id: Option<u8> =
             terminated(alt((digit1.parse_to().map(Some), empty.value(None))), ',')
+                .verify(|i| i.is_none_or(|x| x != 0xff))
                 .context(StrContext::Label("message_id"))
                 .parse_next(s)?;
         let channel = dispatch!(one_of(('A', 'B', '1', '2',','));
@@ -126,36 +124,38 @@ impl<'a> Nmea<'a> {
             .try_map(|s| u8::from_str_radix(s, 16))
             .context(StrContext::Label("checksum"))
             .parse_next(s)?;
-        let metadata = Metadata::new(
-            talker_id,
+        let metadata = Metadata {
+            talker,
             length,
             index,
-            message_id.unwrap_or(0xffu8),
+            message_id: message_id.unwrap_or(0xff),
             channel,
             fill_bits,
             checksum,
-        );
-        Ok(Nmea { metadata, body })
+        };
+        Ok(Nmea {
+            metadata,
+            body: body.into(),
+        })
     }
 }
 
 impl<'a> fmt::Display for Nmea<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         // !AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
-        let Nmea { metadata, body } = self;
-        let mut m = *metadata;
-        let talker = m.talker().get();
-        let length = m.length().get();
-        let index = m.index().get();
-        let message_id = m.message_id().get();
+        let Nmea { metadata: m, body } = self;
+        let talker = m.talker;
+        let length = m.length;
+        let index = m.index;
+        let message_id = m.message_id;
         let message_id = if message_id == 0xff {
             Either::Left("")
         } else {
             Either::Right(message_id)
         };
-        let channel = m.channel().get();
-        let fill_bits = m.fill_bits().get();
-        let checksum = m.checksum().get();
+        let channel = m.channel;
+        let fill_bits = m.fill_bits;
+        let checksum = m.checksum;
         write!(
             fmt,
             "!{talker}VDM,{length},{index},{message_id},{channel},{body},{fill_bits}*{checksum:02X}"
