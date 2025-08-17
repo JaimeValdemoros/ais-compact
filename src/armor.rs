@@ -221,4 +221,16 @@ mod tests {
             "!AIVDM,1,1,,A,802R5Ph0BkDhjPF?qRGbOwwwwwwwwwww2wwwwwwwwwwwwwwwwwwwwwwwwww,2*3B",
         );
     }
+
+    #[test]
+    #[should_panic(expected = "data.len() < 3")]
+    fn test_short_string() {
+        run_roundtrip("!AIVDM,2,2,0,A,@20,4*50");
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid fill_bits")]
+    fn test_invalid_fill_bits() {
+        run_roundtrip("!AIVDM,1,1,,2,601uEP19bi7P04810,6*5D");
+    }
 }
