@@ -89,6 +89,12 @@ impl std::str::FromStr for spec::Message {
     }
 }
 
+impl From<String> for spec::Message {
+    fn from(s: String) -> Self {
+        spec::message::Types::from(s).into()
+    }
+}
+
 impl<'a> TryFrom<&'a spec::Encoded> for crate::sentence::Nmea<'a> {
     type Error = anyhow::Error;
     fn try_from(e: &'a spec::Encoded) -> Result<Self, Self::Error> {
@@ -118,22 +124,17 @@ impl<'a> TryFrom<&'a spec::Encoded> for crate::sentence::Nmea<'a> {
     }
 }
 
-// The protobuf-generated code incldues a Display impl, so we need
-// to wrap it in a newtype to provide our own implementation
-pub struct MessageWrapper<'a>(pub &'a spec::Message);
-
-impl<'a> std::fmt::Display for MessageWrapper<'a> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if self.0.has_encoded() {
-            let e = self.0.encoded();
-            let nmea = crate::sentence::Nmea::try_from(e).unwrap();
-            write!(fmt, "{nmea}")?;
-        } else if self.0.has_raw() {
-            write!(fmt, "{}", self.0.raw())?;
+impl spec::Message {
+    pub fn try_to_string(&self) -> anyhow::Result<String> {
+        if self.has_encoded() {
+            let e = self.encoded();
+            let nmea = crate::sentence::Nmea::try_from(e)?;
+            Ok(nmea.to_string())
+        } else if self.has_raw() {
+            Ok(self.raw().to_owned())
         } else {
             panic!("Unexpected message type");
         }
-        Ok(())
     }
 }
 
@@ -161,7 +162,7 @@ mod tests {
                 assert!(!m.has_encoded());
                 assert!(m.has_raw());
                 assert!(m.raw() == s);
-                assert!(MessageWrapper(&m).to_string() == s);
+                assert!(m.try_to_string().unwrap() == s);
             }
             Err(e) => match e {},
         }
@@ -181,7 +182,7 @@ mod tests {
                     .unwrap();
                 assert!(out.has_encoded());
                 assert!(!out.has_raw());
-                assert_eq!(MessageWrapper(&out).to_string(), s);
+                assert_eq!(out.try_to_string().unwrap(), s);
             }
             Err(e) => match e {},
         }
