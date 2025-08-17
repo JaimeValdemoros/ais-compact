@@ -1,4 +1,6 @@
-pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8, u8), &'static str> {
+use bit_struct::u3;
+
+pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u3, u8), &'static str> {
     // Prepare character iterator
     let mut iter = input.chars();
 
@@ -79,8 +81,11 @@ pub fn unpack(input: &str, fill_bits: u8) -> Result<(Vec<u8>, u8, u8), &'static 
             _ => unreachable!(),
         };
     };
-    assert!(leftover_bits < 8);
-    Ok((out, leftover_bits, garbage))
+    Ok((
+        out,
+        u3::new(leftover_bits).expect("leftover_bits >= 8"),
+        garbage,
+    ))
 }
 
 fn extract_garbage(x: u8, fill_bits: u8) -> u8 {
@@ -111,8 +116,9 @@ fn encode(x: u8) -> Result<char, &'static str> {
     }
 }
 
-pub fn pack(data: &[u8], drop_bits: u8, garbage: u8) -> Result<(String, u8), &'static str> {
-    assert!(drop_bits < 8);
+pub fn pack(data: &[u8], drop_bits: u3, garbage: u8) -> Result<(String, u8), &'static str> {
+    let drop_bits: u8 = drop_bits.value();
+
     let mut out = String::with_capacity((data.len() * 8).div_ceil(6));
     let (slices, rem) = data.as_chunks::<3>();
     let Some((last_slice, slices)) = slices.split_last() else {
