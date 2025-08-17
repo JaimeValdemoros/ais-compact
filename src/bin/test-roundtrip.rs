@@ -1,7 +1,6 @@
 use std::io::BufRead;
 
-mod armor;
-mod sentence;
+use ais_compact::{armor, sentence};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut line = String::new();
