@@ -119,7 +119,7 @@ impl<'a> Nmea<'a> {
             .parse_next(s)?;
         let fill_bits: u3 = terminated(digit1, '*')
             .parse_to()
-            .verify(|i: &u3| i.value() < 7)
+            .verify(|i: &u3| i.value() < 6)
             .context(StrContext::Label("fill_bits"))
             .parse_next(s)?;
         let checksum = take(2usize)
@@ -130,7 +130,7 @@ impl<'a> Nmea<'a> {
             talker_id,
             length,
             index,
-            message_id.unwrap_or(0u8),
+            message_id.unwrap_or(0xffu8),
             channel,
             fill_bits,
             checksum,
@@ -148,7 +148,7 @@ impl<'a> fmt::Display for Nmea<'a> {
         let length = m.length().get();
         let index = m.index().get();
         let message_id = m.message_id().get();
-        let message_id = if message_id == 0 {
+        let message_id = if message_id == 0xff {
             Either::Left("")
         } else {
             Either::Right(message_id)
@@ -158,7 +158,7 @@ impl<'a> fmt::Display for Nmea<'a> {
         let checksum = m.checksum().get();
         write!(
             fmt,
-            "!{talker}VDM,{length},{index},{message_id},{channel},{body},{fill_bits}*{checksum:X}"
+            "!{talker}VDM,{length},{index},{message_id},{channel},{body},{fill_bits}*{checksum:02X}"
         )
     }
 }
