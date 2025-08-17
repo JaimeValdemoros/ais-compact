@@ -102,6 +102,7 @@ impl<'a> Nmea<'a> {
             .parse_next(s)?;
         let message_id: Option<u8> =
             terminated(alt((digit1.parse_to().map(Some), empty.value(None))), ',')
+                .verify(|i| i.is_none_or(|x| x != 0xff))
                 .context(StrContext::Label("message_id"))
                 .parse_next(s)?;
         let channel = dispatch!(one_of(('A', 'B', '1', '2',','));
@@ -130,7 +131,7 @@ impl<'a> Nmea<'a> {
             talker_id,
             length,
             index,
-            message_id.unwrap_or(0xffu8),
+            message_id.unwrap_or(0xff),
             channel,
             fill_bits,
             checksum,
