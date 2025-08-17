@@ -45,7 +45,7 @@ impl<'a, 'b> From<&'a crate::sentence::Nmea<'b>> for spec::message::Types {
                 );
                 let mut encoded = spec::Encoded::new();
                 encoded.set_metadata(metadata.raw());
-                encoded.set_body(data.to_owned());
+                encoded.set_body(data);
                 spec::message::Types::Encoded(encoded)
             }
             Err(e) => {
@@ -125,16 +125,23 @@ impl<'a> TryFrom<&'a spec::Encoded> for crate::sentence::Nmea<'a> {
 }
 
 impl spec::Message {
-    pub fn try_to_string(&self) -> anyhow::Result<String> {
+    pub fn try_write<W: std::io::Write>(&self, mut writer: W) -> anyhow::Result<()> {
         if self.has_encoded() {
             let e = self.encoded();
             let nmea = crate::sentence::Nmea::try_from(e)?;
-            Ok(nmea.to_string())
+            write!(writer, "{}", nmea)?;
         } else if self.has_raw() {
-            Ok(self.raw().to_owned())
+            write!(writer, "{}", self.raw())?;
         } else {
             panic!("Unexpected message type");
         }
+        Ok(())
+    }
+
+    pub fn try_to_string(&self) -> anyhow::Result<String> {
+        let mut s = Vec::new();
+        self.try_write(&mut s)?;
+        Ok(String::try_from(s)?)
     }
 }
 

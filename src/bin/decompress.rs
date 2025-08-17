@@ -6,7 +6,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = std::io::stdout().lock();
     while !reader.eof()? {
         let message = reader.read_message::<ais_compact::proto::spec::Message>()?;
-        writeln!(stdout, "{}", message.try_to_string()?)?;
+        message.try_write(&mut stdout)?;
+        stdout.write_all(b"\n")?;
     }
     Ok(())
 }
