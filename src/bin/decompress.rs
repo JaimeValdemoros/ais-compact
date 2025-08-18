@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             buf.clear();
             message.try_write(&mut buf)?;
             let s = std::str::from_utf8(&buf)?;
-            if !ais_compact::sentence::verify_checksum(s)? {
+            if !ais_compact::verify_checksum(s)? {
                 return Err(anyhow::anyhow!("Invalid checksum").into());
             }
         }

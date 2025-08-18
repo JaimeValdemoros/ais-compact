@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // First, check the checksum is valid. We'll be using it on the receiving side
         // to check for errors, so if it's not already valid it'll have to be sent as
         // a raw string.
-        let message = if ais_compact::sentence::verify_checksum(line).unwrap_or(false) {
+        let message = if ais_compact::verify_checksum(line).unwrap_or(false) {
             let mut message = line
                 .trim_end()
                 .parse::<ais_compact::proto::spec::Message>()
