@@ -19,15 +19,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if line.is_empty() {
             continue;
         }
-        let mut message = line
-            .trim_end()
-            .parse::<ais_compact::proto::spec::Message>()
-            .unwrap_or_else(|e| match e {});
-        if let Err(e) = check_roundtrip(&line, &message, &mut roundtrip_buf) {
-            eprintln!("Error encoding, falling back to raw: {line}\n{e}");
-            // Convert the line into a raw message
-            message = ais_compact::proto::spec::Message::from(line.to_owned());
-        }
+        // First, check the checksum is valid. We'll be using it on the receiving side
+        // to check for errors, so if it's not already valid it'll have to be sent as
+        // a raw string.
+        let message = if ais_compact::verify_checksum(line).unwrap_or(false) {
+            let mut message = line
+                .trim_end()
+                .parse::<ais_compact::proto::spec::Message>()
+                .unwrap_or_else(|e| match e {});
+
+            // Check round-trip succeeds - if not, send as raw string
+            if let Err(e) = check_roundtrip(&line, &message, &mut roundtrip_buf) {
+                eprintln!("Error encoding, falling back to raw: {line}\n{e}");
+                // Convert the line into a raw message
+                message = ais_compact::proto::spec::Message::from(line.to_owned())
+            };
+
+            message
+        } else {
+            // Checksum check failed, send as raw string
+            eprintln!("Checksum check failed, sending raw string: '{line}'");
+            ais_compact::proto::spec::Message::from(line.to_owned())
+        };
+
         message.write_length_delimited_to(&mut writer)?;
     }
     Ok(())
