@@ -29,10 +29,10 @@
     treefmtEval = eachSystem (pkgs: inputs.treefmt-nix.lib.evalModule pkgs treefmt-config);
   in {
     # For `nix build` & `nix run`:
-    defaultPackage = eachSystem (pkgs: self.packages.${pkgs.system}.unarmor);
+    defaultPackage = eachSystem (pkgs: self.packages.${pkgs.system}.ais-compact);
 
     packages = eachSystem (pkgs: {
-      unarmor = pkgs.callPackage ./. {
+      ais-compact = pkgs.callPackage ./. {
         inherit (inputs) naersk;
       };
     });
@@ -42,7 +42,7 @@
       pkgs:
         pkgs.mkShell {
           inputsFrom = [
-            self.packages.${pkgs.system}.unarmor
+            self.packages.${pkgs.system}.ais-compact
           ];
           buildInputs = with pkgs; [buf];
         }
