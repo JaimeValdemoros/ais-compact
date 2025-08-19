@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{BufRead, Write};
 
 use clap::Parser;
 
@@ -6,12 +6,21 @@ use clap::Parser;
 struct Args {
     #[arg(long)]
     auth_code: Option<String>,
+    #[arg(long)]
+    proxy_header: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let mut stdin = std::io::stdin().lock();
+    if args.proxy_header {
+        let buf = stdin.fill_buf()?;
+        let (header, length) = proxy_header::ProxyHeader::parse(buf, Default::default())?;
+        eprintln!("{:#?}", header.proxied_address());
+        stdin.consume(length);
+    };
+
     let mut reader = protobuf::CodedInputStream::from_buf_read(&mut stdin);
     let mut stdout = std::io::stdout().lock();
 
