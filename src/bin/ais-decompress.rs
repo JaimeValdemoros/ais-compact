@@ -37,11 +37,15 @@ fn validate_header(
 ) -> anyhow::Result<()> {
     let header = reader.read_message::<ais_compact::proto::spec::Header>()?;
     if let Some(auth_code) = auth_code {
-        if !header.has_api_key() {
+        if !header.auth.has_api_key() {
             anyhow::bail!("No API key provided");
         };
-        if header.api_key() != auth_code {
-            anyhow::bail!("API key mismatch: {} != {}", header.api_key(), auth_code);
+        if header.auth.api_key() != auth_code {
+            anyhow::bail!(
+                "API key mismatch: {} != {}",
+                header.auth.api_key(),
+                auth_code
+            );
         }
     }
     Ok(())

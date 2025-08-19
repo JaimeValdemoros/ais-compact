@@ -65,7 +65,10 @@ fn header(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut header = ais_compact::proto::spec::Header::new();
     if let Some(auth_code) = auth_code {
-        header.set_api_key(auth_code.into());
+        header
+            .auth
+            .mut_or_insert_default()
+            .set_api_key(auth_code.into());
     }
     let mut writer = protobuf::CodedOutputStream::new(stdout);
     header.write_length_delimited_to(&mut writer)?;
