@@ -1,8 +1,15 @@
 use std::io::Write;
 
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long)]
+    auth_code: Option<String>,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = std::env::args().skip(1).collect::<Vec<_>>();
-    let auth_code = args.first();
+    let args = Args::parse();
 
     let mut stdin = std::io::stdin().lock();
     let mut reader = protobuf::CodedInputStream::from_buf_read(&mut stdin);
@@ -11,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Buffer to avoid repeated allocations
     let mut buf = Vec::new();
 
-    validate_header(&mut reader, auth_code.map(String::as_str))?;
+    validate_header(&mut reader, args.auth_code.as_ref().map(String::as_str))?;
 
     while !reader.eof()? {
         let message = reader.read_message::<ais_compact::proto::spec::Message>()?;
