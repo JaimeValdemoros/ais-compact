@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Breaking: require header on all connections, with optional api_key'
+time: 2025-08-19T11:47:46.898688491Z
