@@ -9,9 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdin = std::io::stdin().lock();
     let mut stdout = std::io::stdout().lock();
 
-    if let Some(ref auth_code) = auth_code {
-        authenticate(&mut stdout, *auth_code)?
-    };
+    header(&mut stdout, auth_code)?;
 
     // Buffers to be reused across loops
     let mut line = String::new();
@@ -61,12 +59,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn authenticate(
+fn header(
     stdout: &mut impl Write,
-    auth_code: impl Into<String>,
+    auth_code: Option<impl Into<String>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut header = ais_compact::proto::spec::Header::new();
-    header.set_api_key(auth_code.into());
+    if let Some(auth_code) = auth_code {
+        header.set_api_key(auth_code.into());
+    }
     let mut writer = protobuf::CodedOutputStream::new(stdout);
     header.write_length_delimited_to(&mut writer)?;
     writer.flush()?;
