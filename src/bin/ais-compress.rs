@@ -41,6 +41,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ais_compact::proto::spec::Message::from(line.to_owned())
         };
 
+        // FIXME: https://github.com/stepancheg/rust-protobuf/issues/541
+        //        https://github.com/JaimeValdemoros/ais-compact/pull/5
+        // Once we can flush the underlying writer, we should go back to having
+        // single CodedOutputStream instead of recreating it per loop
         let mut writer = protobuf::CodedOutputStream::new(&mut stdout);
         message.write_length_delimited_to(&mut writer)?;
         writer.flush()?;
