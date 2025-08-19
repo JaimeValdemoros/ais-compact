@@ -14,3 +14,9 @@ message Message {
     Encoded encoded = 2;
   }
 }
+
+message Auth {
+  oneof types {
+    string api_key = 1;
+  }
+}
