@@ -11,9 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Buffer to avoid repeated allocations
     let mut buf = Vec::new();
 
-    if let Some(ref auth_code) = auth_code {
-        authenticate(&mut reader, auth_code)?
-    };
+    validate_header(&mut reader, auth_code.map(String::as_str))?;
 
     while !reader.eof()? {
         let message = reader.read_message::<ais_compact::proto::spec::Message>()?;
@@ -33,13 +31,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn authenticate(reader: &mut protobuf::CodedInputStream, auth_code: &str) -> anyhow::Result<()> {
-    let auth = reader.read_message::<ais_compact::proto::spec::Auth>()?;
-    if !auth.has_api_key() {
-        anyhow::bail!("No API key provided");
-    };
-    if auth.api_key() != auth_code {
-        anyhow::bail!("API key mismatch: {} != {}", auth.api_key(), auth_code);
+fn validate_header(
+    reader: &mut protobuf::CodedInputStream,
+    auth_code: Option<&str>,
+) -> anyhow::Result<()> {
+    let header = reader.read_message::<ais_compact::proto::spec::Header>()?;
+    if let Some(auth_code) = auth_code {
+        if !header.auth.has_api_key() {
+            anyhow::bail!("No API key provided");
+        };
+        if header.auth.api_key() != auth_code {
+            anyhow::bail!(
+                "API key mismatch: {} != {}",
+                header.auth.api_key(),
+                auth_code
+            );
+        }
     }
     Ok(())
 }

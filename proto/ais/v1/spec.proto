@@ -16,7 +16,10 @@ message Message {
 }
 
 message Auth {
-  oneof types {
+  oneof auth {
     string api_key = 1;
   }
+}
+message Header {
+  Auth auth = 1;
 }

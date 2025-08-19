@@ -14,14 +14,6 @@ bit_struct::bit_struct! {
     }
 }
 
-impl From<String> for spec::Auth {
-    fn from(s: String) -> Self {
-        let mut a = spec::Auth::new();
-        a.set_api_key(s);
-        a
-    }
-}
-
 impl From<String> for spec::message::Types {
     fn from(s: String) -> Self {
         spec::message::Types::Raw(s)
