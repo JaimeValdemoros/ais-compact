@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn authenticate(reader: &mut protobuf::CodedInputStream, auth_code: &str) -> anyhow::Result<()> {
-    let auth = reader.read_message::<ais_compact::proto::spec::Auth>()?;
+    let auth = reader.read_message::<ais_compact::proto::spec::Header>()?;
     if !auth.has_api_key() {
         anyhow::bail!("No API key provided");
     };

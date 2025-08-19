@@ -65,9 +65,10 @@ fn authenticate(
     stdout: &mut impl Write,
     auth_code: impl Into<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let message = ais_compact::proto::spec::Auth::from(auth_code.into());
+    let mut header = ais_compact::proto::spec::Header::new();
+    header.set_api_key(auth_code.into());
     let mut writer = protobuf::CodedOutputStream::new(stdout);
-    message.write_length_delimited_to(&mut writer)?;
+    header.write_length_delimited_to(&mut writer)?;
     writer.flush()?;
     drop(writer);
     stdout.flush()?;
