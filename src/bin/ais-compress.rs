@@ -3,8 +3,15 @@ use std::io::{BufRead, Write};
 use protobuf::{CodedInputStream, Message};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    let auth_code = args.first();
+
     let mut stdin = std::io::stdin().lock();
     let mut stdout = std::io::stdout().lock();
+
+    if let Some(ref auth_code) = auth_code {
+        authenticate(&mut stdout, *auth_code)?
+    };
 
     // Buffers to be reused across loops
     let mut line = String::new();
@@ -51,6 +58,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         drop(writer);
         stdout.flush()?
     }
+    Ok(())
+}
+
+fn authenticate(
+    stdout: &mut impl Write,
+    auth_code: impl Into<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let message = ais_compact::proto::spec::Auth::from(auth_code.into());
+    let mut writer = protobuf::CodedOutputStream::new(stdout);
+    message.write_length_delimited_to(&mut writer)?;
+    writer.flush()?;
+    drop(writer);
+    stdout.flush()?;
     Ok(())
 }
 
