@@ -1,15 +1,21 @@
 use std::io::{BufRead, Write};
 
+use clap::Parser;
 use protobuf::{CodedInputStream, Message};
 
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long)]
+    auth_code: Option<String>,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = std::env::args().skip(1).collect::<Vec<_>>();
-    let auth_code = args.first();
+    let args = Args::parse();
 
     let mut stdin = std::io::stdin().lock();
     let mut stdout = std::io::stdout().lock();
 
-    header(&mut stdout, auth_code)?;
+    header(&mut stdout, args.auth_code)?;
 
     // Buffers to be reused across loops
     let mut line = String::new();
