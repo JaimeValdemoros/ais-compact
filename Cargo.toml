@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.99"
 bit-struct = { version = "0.3.2", default-features = false }
+clap = { version = "4.5.45", features = ["derive"] }
 either = "1.15.0"
 protobuf = { version = "3.7.2", features = ["with-bytes"] }
 winnow = "0.7.12"
