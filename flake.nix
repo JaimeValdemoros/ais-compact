@@ -44,7 +44,7 @@
           inputsFrom = [
             self.packages.${pkgs.system}.ais-compact
           ];
-          buildInputs = with pkgs; [buf nmap];
+          buildInputs = with pkgs; [buf changie nmap];
         }
     );
 
