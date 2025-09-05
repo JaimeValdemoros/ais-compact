@@ -12,6 +12,7 @@ message Message {
   oneof types {
     string raw = 1;
     Encoded encoded = 2;
+    int32 prev = 3;
   }
 }
 
@@ -22,4 +23,5 @@ message Auth {
 }
 message Header {
   Auth auth = 1;
+  int32 window_size = 2;
 }
