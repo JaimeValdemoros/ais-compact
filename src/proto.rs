@@ -76,7 +76,7 @@ impl From<spec::message::Types> for spec::Message {
         match t {
             spec::message::Types::Raw(t) => m.set_raw(t),
             spec::message::Types::Encoded(e) => m.set_encoded(e),
-            spec::message::Types::Prev(p) => m.set_prev(p),
+            spec::message::Types::Repeat(p) => m.set_repeat(p),
         }
         m
     }

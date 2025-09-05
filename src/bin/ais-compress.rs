@@ -54,17 +54,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // post: 0 <= pos < window_size
         };
 
+        let (checksum_valid, checksum) = ais_compact::verify_checksum(line)?;
+
         // First, check if we've had a 'prev' match.
         let message = if let Some(prev_ix) = prev_ix {
             eprintln!("Repeat match! -{prev_ix}");
             let mut m = ais_compact::proto::spec::Message::new();
-            m.set_prev(prev_ix as i32);
+            let mut r = ais_compact::proto::spec::Repeat::new();
+            r.set_index(prev_ix as i32);
+            r.set_checksum(checksum.into());
+            m.set_repeat(r);
             m
         }
         // Then, check the checksum is valid. We'll be using it on the receiving side
         // to check for errors, so if it's not already valid it'll have to be sent as
         // a raw string.
-        else if ais_compact::verify_checksum(line).unwrap_or(false) {
+        else if checksum_valid {
             let mut message = line
                 .trim_end()
                 .parse::<ais_compact::proto::spec::Message>()

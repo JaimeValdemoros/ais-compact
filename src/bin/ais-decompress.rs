@@ -34,24 +34,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     while !reader.eof()? {
         let mut message = reader.read_message::<ais_compact::proto::spec::Message>()?;
 
-        if message.has_prev() {
+        if message.has_repeat() {
             assert!(window_size > 0);
-            let prev: usize = message.prev().try_into().unwrap();
+            let prev: usize = message.repeat().index().try_into().unwrap();
+            let checksum = message.repeat().checksum();
+
             assert!(prev < window_size);
             let ix = if prev > pos {
                 window_size - prev + pos
             } else {
                 pos - prev
             };
+
             // Correctness: 1 <= ix < message_size
-            message = window[ix].as_ref().cloned().unwrap();
+            let prev_message = window[ix].as_ref().cloned().unwrap();
+            let prev_checksum = ais_compact::verify_checksum(&prev_message.try_to_string()?)?.1;
+            if u32::from(prev_checksum) != checksum {
+                return Err(
+                    anyhow::anyhow!("Mismatched checksum: {prev_checksum} != {checksum}").into(),
+                );
+            };
+            message = prev_message;
         }
 
         if message.has_encoded() {
             buf.clear();
             message.try_write(&mut buf)?;
             let s = std::str::from_utf8(&buf)?;
-            if !ais_compact::verify_checksum(s)? {
+            if !ais_compact::verify_checksum(s)?.0 {
                 return Err(anyhow::anyhow!("Invalid checksum").into());
             }
         }

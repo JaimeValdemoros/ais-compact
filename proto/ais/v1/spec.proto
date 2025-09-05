@@ -8,11 +8,16 @@ message Encoded {
   bytes body = 2;
 }
 
+message Repeat {
+  int32 index = 1;
+  fixed32 checksum = 2;
+}
+
 message Message {
   oneof types {
     string raw = 1;
     Encoded encoded = 2;
-    int32 prev = 3;
+    Repeat repeat = 3;
   }
 }
 
