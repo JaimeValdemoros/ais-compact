@@ -2,7 +2,7 @@ pub mod armor;
 pub mod proto;
 pub mod sentence;
 
-pub fn verify_checksum(s: &str) -> anyhow::Result<bool> {
+pub fn verify_checksum(s: &str) -> anyhow::Result<(bool, u8)> {
     use winnow::Parser;
     use winnow::error::StrContext;
     use winnow::token::{take, take_until};
@@ -31,5 +31,5 @@ pub fn verify_checksum(s: &str) -> anyhow::Result<bool> {
     for char in main.chars() {
         acc ^= u8::try_from(char)?;
     }
-    Ok(acc == 0)
+    Ok((acc == 0, checksum))
 }

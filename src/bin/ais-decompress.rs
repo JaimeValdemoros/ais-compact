@@ -27,21 +27,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Buffer to avoid repeated allocations
     let mut buf = Vec::new();
 
-    validate_header(&mut reader, args.auth_code.as_ref().map(String::as_str))?;
+    let window_size = validate_header(&mut reader, args.auth_code.as_ref().map(String::as_str))?;
+    let mut window: Vec<Option<ais_compact::proto::spec::Message>> = vec![None; window_size];
+    let mut pos = 0usize;
 
     while !reader.eof()? {
-        let message = reader.read_message::<ais_compact::proto::spec::Message>()?;
+        let mut message = reader.read_message::<ais_compact::proto::spec::Message>()?;
+
+        if message.has_repeat() {
+            assert!(window_size > 0);
+            let prev: usize = message.repeat().index().try_into().unwrap();
+            let checksum = message.repeat().checksum();
+
+            assert!(prev < window_size);
+            let ix = if prev > pos {
+                window_size - prev + pos
+            } else {
+                pos - prev
+            };
+
+            // Correctness: 1 <= ix < message_size
+            let prev_message = window[ix].as_ref().cloned().unwrap();
+            let prev_checksum = ais_compact::verify_checksum(&prev_message.try_to_string()?)?.1;
+            if u32::from(prev_checksum) != checksum {
+                return Err(
+                    anyhow::anyhow!("Mismatched checksum: {prev_checksum} != {checksum}").into(),
+                );
+            };
+            message = prev_message;
+        }
 
         if message.has_encoded() {
             buf.clear();
             message.try_write(&mut buf)?;
             let s = std::str::from_utf8(&buf)?;
-            if !ais_compact::verify_checksum(s)? {
+            if !ais_compact::verify_checksum(s)?.0 {
                 return Err(anyhow::anyhow!("Invalid checksum").into());
             }
         }
 
         message.try_write(&mut stdout)?;
+
+        if window_size > 0 {
+            // Pre: 0 <= pos < window_size
+            window[pos] = Some(message);
+            pos = (pos + 1) % window_size;
+            // post: 0 <= pos < window_size
+        }
+
         stdout.write_all(b"\n")?;
     }
     Ok(())
@@ -50,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn validate_header(
     reader: &mut protobuf::CodedInputStream,
     auth_code: Option<&str>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<usize> {
     let header = reader.read_message::<ais_compact::proto::spec::Header>()?;
     if let Some(auth_code) = auth_code {
         if !header.auth.has_api_key() {
@@ -64,5 +97,9 @@ fn validate_header(
             );
         }
     }
-    Ok(())
+    Ok(header
+        .window_size
+        .unwrap_or_default()
+        .try_into()
+        .unwrap_or(0))
 }
